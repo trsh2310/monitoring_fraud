@@ -1,0 +1,163 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "fraud-stream",
+      "folder": "Fraud monitoring",
+      "interval": "10s",
+      "rules": [
+        {
+          "uid": "fraud-high-share",
+          "title": "Высокая доля фрода",
+          "condition": "C",
+          "for": "30s",
+          "noDataState": "Alerting",
+          "execErrState": "Error",
+          "isPaused": false,
+          "labels": {
+            "team": "fraud",
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Доля помеченных транзакций выше 35% в течение 30 секунд",
+            "__dashboardUid__": "fraud-scoring",
+            "__panelId__": "3"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "prometheus",
+              "relativeTimeRange": {
+                "from": 120,
+                "to": 0
+              },
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(fraud_flagged_total[1m])) / clamp_min(sum(rate(fraud_processed_total[1m])), 0.001)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200,
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "type": "query",
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.35
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "fraud-stream-stopped",
+          "title": "Поток остановился",
+          "condition": "C",
+          "for": "20s",
+          "noDataState": "Alerting",
+          "execErrState": "Error",
+          "isPaused": false,
+          "labels": {
+            "team": "fraud",
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Нет транзакций более 20 секунд; условие держится ещё 20 секунд",
+            "__dashboardUid__": "fraud-scoring",
+            "__panelId__": "1"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "prometheus",
+              "relativeTimeRange": {
+                "from": 120,
+                "to": 0
+              },
+              "model": {
+                "refId": "A",
+                "expr": "time() - max(fraud_last_processed_timestamp_seconds)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200,
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "type": "query",
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        20
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

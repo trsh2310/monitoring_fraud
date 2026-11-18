@@ -1,0 +1,384 @@
+{
+  "uid": "fraud-business",
+  "title": "04 · Сегменты и бизнес",
+  "schemaVersion": 40,
+  "version": 1,
+  "editable": true,
+  "tags": [
+    "fraud",
+    "hw05"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "title": "Скоры и доля фрода по версии модели",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawSql": "SELECT model_version AS \"Версия\", count(*) AS \"Скоров\", avg(fraud_flag)::double precision AS \"Доля фрода\", avg(score) AS \"Средний скор\" FROM scores WHERE $__timeFilter(scored_at) AND us_state IN (${us_state:sqlstring}) AND merch IN (${merch:sqlstring}) GROUP BY model_version ORDER BY min(scored_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "title": "Плотность скоров · выбранный сегмент",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Оценка плотности: count / (N × 0.05). Площадь столбцов равна 1. Учитываются период, штат и мерчант.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawSql": "\nWITH selected AS (SELECT least(floor(score * 20)::int, 19) AS bin FROM scores WHERE $__timeFilter(scored_at) AND us_state IN (${us_state:sqlstring}) AND merch IN (${merch:sqlstring})),\ncounts AS (SELECT bin, count(*) AS n FROM selected GROUP BY bin)\nSELECT to_char(b.bin * 0.05, '0.00') || '–' || to_char((b.bin + 1) * 0.05, '0.00') AS \"score\",\n       coalesce(c.n, 0)::double precision / nullif((SELECT count(*) FROM selected) * 0.05, 0) AS \"Плотность\"\nFROM generate_series(0, 19) b(bin) LEFT JOIN counts c USING (bin) ORDER BY b.bin\n",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": -20,
+        "showValue": "auto",
+        "groupWidth": 0.8,
+        "barWidth": 0.9
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "title": "TPS · выбранный сегмент",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Число уникальных транзакций / 10 секунд. Только полные интервалы; пропуски заполнены нулями.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawSql": "\nWITH buckets AS (\n SELECT generate_series(to_timestamp(ceil(extract(epoch FROM $__timeFrom()::timestamptz) / 10) * 10),\n to_timestamp(floor(extract(epoch FROM $__timeTo()::timestamptz) / 10) * 10 - 10), interval '10 seconds') AS time\n), counts AS (\n SELECT to_timestamp(floor(extract(epoch FROM scored_at) / 10) * 10) AS time, count(*) / 10.0 AS tps\n FROM scores WHERE $__timeFilter(scored_at) AND us_state IN (${us_state:sqlstring}) AND merch IN (${merch:sqlstring}) GROUP BY 1\n)\nSELECT b.time AS \"time\", coalesce(c.tps, 0)::double precision AS \"TPS\" FROM buckets b LEFT JOIN counts c USING (time) ORDER BY 1\n",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "title": "Фрод по категории · последние 1000 транзакций",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Общие последние 1000 записей потока независимо от фильтров и периода. Если записей меньше, используются все имеющиеся.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawSql": "\nWITH recent AS (SELECT cat_id, fraud_flag FROM scores ORDER BY scored_at DESC, transaction_id DESC LIMIT 1000)\nSELECT cat_id, avg(fraud_flag)::double precision AS \"Доля фрода\" FROM recent GROUP BY cat_id ORDER BY 2 DESC\n",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": -20,
+        "showValue": "auto",
+        "groupWidth": 0.8,
+        "barWidth": 0.9
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "title": "Сумма подозрительных транзакций по мерчантам",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Помогает приоритизировать проверку по денежному объёму. Это сумма помеченных транзакций, а не подтверждённый ущерб.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawSql": "SELECT merch AS \"Мерчант\", sum(amt * fraud_flag) AS \"Подозрительная сумма, USD\" FROM scores WHERE $__timeFilter(scored_at) AND us_state IN (${us_state:sqlstring}) AND merch IN (${merch:sqlstring}) GROUP BY merch ORDER BY 2 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": -20,
+        "showValue": "auto",
+        "groupWidth": 0.8,
+        "barWidth": 0.9
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "title": "Размер выборки · выбранный сегмент",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawSql": "SELECT count(*) AS \"Транзакций\" FROM scores WHERE $__timeFilter(scored_at) AND us_state IN (${us_state:sqlstring}) AND merch IN (${merch:sqlstring})",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 9
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "us_state",
+        "label": "Штат",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "postgres"
+        },
+        "query": "SELECT DISTINCT us_state FROM scores ORDER BY 1",
+        "definition": "SELECT DISTINCT us_state FROM scores ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "merch",
+        "label": "Мерчант",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "postgres"
+        },
+        "query": "SELECT DISTINCT merch FROM scores ORDER BY 1",
+        "definition": "SELECT DISTINCT merch FROM scores ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  }
+}
